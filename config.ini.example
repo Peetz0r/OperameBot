@@ -1,0 +1,13 @@
+[db]
+host = localhost
+user = opeamebot
+pass =
+db = prestashop
+prefix = ps_
+
+[irc]
+host = chat.freennode.net
+port = 6697
+nick =
+ssl = 1
+channel =
