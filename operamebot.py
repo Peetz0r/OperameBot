@@ -1,6 +1,6 @@
 #!/bin/env python3
 
-import MySQLdb, irc.client, ssl, time, configparser
+import MySQLdb, irc.client, ssl, time, configparser, datetime
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -11,8 +11,8 @@ db = MySQLdb.connect(host=config['db']['host'], user=config['db']['user'], passw
 c = db.cursor()
 print('done')
 
-target = '#revspace-test'
-id_order_laatste = 0
+target = config['irc']['channel']
+date_upd_laatste = datetime.datetime(1, 1, 1)
 
 def on_connect(connection, event):
   connection.join(target)
@@ -21,18 +21,18 @@ def on_connect(connection, event):
 def on_join(connection, event):
   print('joined %s' % (target))
   c.execute('''
-    SELECT o.id_order, o.total_paid, o.date_add, c.name
+    SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM ps_orders AS o
     LEFT JOIN ps_carrier AS c          # implicit join zou geen resultaten van virtuele orders teruggeven
     ON o.id_carrier = c.id_carrier
     WHERE o.current_state = 2          # 2 is 'Betaling Aanvaard'
-    ORDER BY id_order DESC
+    ORDER BY o.date_upd DESC
     LIMIT 1
   ''')
   r = c.fetchone()
-  global id_order_laatste
-  id_order_laatste = r[0]
-  soort = (r[3] or 'Donatie').split()[-1]
+  global date_upd_laatste
+  date_upd_laatste = r[3]
+  soort = (r[4] or 'Donatie').split()[-1]
   line = 'Laatste bestelling: #%d van €%.2f (%s) geplaatst op %s' % (r[0], r[1], soort, r[2].strftime('%Y-%m-%d %X'))
   print(line)
   connection.privmsg(target, line)
@@ -42,21 +42,21 @@ def on_disconnect(connection, event):
     raise SystemExit()
 
 def checkshop(connection):
-  global id_order_laatste
+  global date_upd_laatste
   c.execute('''
-    SELECT o.id_order, o.total_paid, o.date_add, c.name
+    SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM ps_orders AS o
     LEFT JOIN ps_carrier AS c          # implicit join zou geen resultaten van virtuele orders teruggeven
     ON o.id_carrier = c.id_carrier
     WHERE o.current_state = 2          # 2 is 'Betaling Aanvaard'
-    AND o.id_order > %d
-    ORDER BY id_order ASC
+    AND o.date_upd > '%s'
+    ORDER BY o.date_upd ASC
     LIMIT 1
-  ''' % (id_order_laatste))
+  ''' % (date_upd_laatste.strftime('%Y-%m-%d %X')))
   r = c.fetchone()
   if(r is not None):
-    id_order_laatste = r[0]
-    soort = (r[3] or 'Donatie').split()[-1]
+    date_upd_laatste = r[3]
+    soort = (r[4] or 'Donatie').split()[-1]
     line = 'Nieuwe bestelling: #%d van €%.2f (%s) geplaatst op %s' % (r[0], r[1], soort, r[2].strftime('%Y-%m-%d %X'))
     print(line)
     connection.privmsg(target, line)
