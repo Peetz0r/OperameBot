@@ -21,7 +21,7 @@ db.autocommit(True)
 c = db.cursor()
 logger.info(f"connected to database (host={config['db']['host']}, user={config['db']['user']}, password=not logged, db={config['db']['db']})")
 
-date_upd_laatste = datetime.datetime(1, 1, 1)
+date_upd_last = datetime.datetime(1, 1, 1)
 
 def on_connect(connection, event):
   logger.info(f"connected {(event.type, event.source, event.target, event.arguments)}")
@@ -33,17 +33,17 @@ def on_join(connection, event):
   c.execute(f'''
     SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM {config['db']['prefix']}orders AS o
-    LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join zou geen resultaten van virtuele orders teruggeven
+    LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
     ON o.id_carrier = c.id_carrier
-    WHERE o.current_state = 2                               # 2 is 'Betaling Aanvaard'
+    WHERE o.current_state = 2                               # 2 is 'Payment Accepted'
     ORDER BY o.date_upd DESC
     LIMIT 1
   ''')
   r = c.fetchone()
-  global date_upd_laatste
-  date_upd_laatste = r[3]
-  soort = (r[4] or 'Donatie').split()[-1]
-  line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({soort}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+  global date_upd_last
+  date_upd_last = r[3]
+  kind = (r[4] or 'Donatie').split()[-1]
+  line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
   logger.info(line)
   connection.privmsg(config['irc']['channel'], line)
   bot.execute_every(10, checkshop, (connection,))
@@ -52,23 +52,23 @@ def on_disconnect(connection, event):
     raise SystemExit()
 
 def checkshop(connection):
-  global date_upd_laatste
+  global date_upd_last
   c.execute(f'''
     SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM {config['db']['prefix']}orders AS o
-    LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join zou geen resultaten van virtuele orders teruggeven
+    LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
     ON o.id_carrier = c.id_carrier
-    WHERE o.current_state = 2                               # 2 is 'Betaling Aanvaard'
+    WHERE o.current_state = 2                               # 2 is 'Payment Accepted'
     AND o.date_upd > %s
     ORDER BY o.date_upd ASC
     LIMIT 1
-  ''', (date_upd_laatste,))
+  ''', (date_upd_last,))
   r = c.fetchone()
   logger.debug(r)
   if(r is not None):
-    date_upd_laatste = r[3]
-    soort = (r[4] or 'Donatie').split()[-1]
-    line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({soort}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+    date_upd_last = r[3]
+    kind = (r[4] or 'Donatie').split()[-1]
+    line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
     logger.info(line)
     connection.privmsg(config['irc']['channel'], line)
 
