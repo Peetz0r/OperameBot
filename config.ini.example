@@ -1,12 +1,12 @@
 [db]
 host = localhost
-user = opeamebot
+user = operamebot
 pass =
 db = prestashop
 prefix = ps_
 
 [irc]
-host = chat.freennode.net
+host = chat.freenode.net
 port = 6697
 nick =
 ssl = 1
