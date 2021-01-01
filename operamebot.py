@@ -22,6 +22,7 @@ c = db.cursor()
 logger.info(f"connected to database (host={config['db']['host']}, user={config['db']['user']}, password=not logged, db={config['db']['db']})")
 
 date_upd_last = datetime.datetime(1, 1, 1)
+id_order_already_seen = set()
 
 def on_connect(connection, event):
   logger.info(f"connected {(event.type, event.source, event.target, event.arguments)}")
@@ -40,8 +41,9 @@ def on_join(connection, event):
     LIMIT 1
   ''')
   r = c.fetchone()
-  global date_upd_last
+  global date_upd_last, id_order_already_seen
   date_upd_last = r[3]
+  id_order_already_seen.add(r[0])
   kind = (r[4] or 'Donatie').split()[-1]
   line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
   logger.info(line)
@@ -52,7 +54,7 @@ def on_disconnect(connection, event):
     raise SystemExit()
 
 def checkshop(connection):
-  global date_upd_last
+  global date_upd_last, id_order_already_seen
   c.execute(f'''
     SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM {config['db']['prefix']}orders AS o
@@ -67,10 +69,13 @@ def checkshop(connection):
   logger.debug(r)
   if(r is not None):
     date_upd_last = r[3]
-    kind = (r[4] or 'Donatie').split()[-1]
-    line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
-    logger.info(line)
-    connection.privmsg(config['irc']['channel'], line)
+    if r[0] not in id_order_already_seen:
+      kind = (r[4] or 'Donatie').split()[-1]
+      line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+      logger.info(line)
+      connection.privmsg(config['irc']['channel'], line)
+    else:
+      logger.info(f"already seen: {r}")
 
 
 client = irc.client.IRC()
