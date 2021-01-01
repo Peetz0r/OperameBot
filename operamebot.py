@@ -1,28 +1,32 @@
-#!/bin/env -S python3 -u
+#!/bin/env python3
 
-import MySQLdb, irc.client, ssl, configparser, datetime
+import MySQLdb, irc.client, ssl, configparser, datetime, logging
+
+logging.basicConfig(
+  filename=datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S.log'),
+  format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
+  level=logging.DEBUG
+)
+logger = logging.getLogger('OperameBot')
 
 config = configparser.ConfigParser()
-config.read('config.ini')
-print(config.sections())
+t = (config.read('config.ini'), config.sections())
+logger.info(f"Reading config file {t[0][0]} with scetions {t[1]}")
 
-print('connecting to database... ', end='')
 db = MySQLdb.connect(host=config['db']['host'], user=config['db']['user'], password=config['db']['pass'], db=config['db']['db'])
 db.autocommit(True)
 c = db.cursor()
-print('done')
+logger.info(f"connected to database (host={config['db']['host']}, user={config['db']['user']}, password=not logged, db={config['db']['db']})")
 
-target = config['irc']['channel']
 date_upd_laatste = datetime.datetime(1, 1, 1)
 
 def on_connect(connection, event):
-  print('connected')
-  print('joining %s... ' % (config['irc']['channel']), end='')
-  connection.join(target)
+  logger.info(f"connected {(event.type, event.source, event.target, event.arguments)}")
+  connection.join(config['irc']['channel'])
   return
 
 def on_join(connection, event):
-  print('joined')
+  logger.info(f"joined {(event.type, event.source, event.target, event.arguments)}")
   c.execute(f'''
     SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
     FROM {config['db']['prefix']}orders AS o
@@ -37,9 +41,10 @@ def on_join(connection, event):
   date_upd_laatste = r[3]
   soort = (r[4] or 'Donatie').split()[-1]
   line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({soort}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
-  print(line)
-  connection.privmsg(target, line)
+  logger.info(line)
+  connection.privmsg(config['irc']['channel'], line)
   bot.execute_every(10, checkshop, (connection,))
+  connection.privmsg(config['irc']['channel'], 'Peetz0r: oi!')
 
 def on_disconnect(connection, event):
     raise SystemExit()
@@ -57,22 +62,29 @@ def checkshop(connection):
     LIMIT 1
   ''')
   r = c.fetchone()
+  logger.debug(r)
   if(r is not None):
     date_upd_laatste = r[3]
     soort = (r[4] or 'Donatie').split()[-1]
     line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({soort}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
-    print()
-    print(line)
-    connection.privmsg(target, line)
-  else:
-    print('.',end='')
+    logger.info(line)
+    connection.privmsg(config['irc']['channel'], line)
 
 
-ssl_factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
 client = irc.client.IRC()
 
-print('connecting to %s... ' % (config['irc']['host']), end='')
-bot = client.server().connect(config['irc']['host'], int(config['irc']['port']), config['irc']['nick'], connect_factory=ssl_factory)
+try:
+  if config['irc'].getboolean('ssl'):
+    logger.info(f"connecting to {config['irc']['host']}:{config['irc']['port']} with SSL... ")
+    ssl_factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
+    bot = client.server().connect(config['irc']['host'], int(config['irc']['port']), config['irc']['nick'], connect_factory=ssl_factory)
+  else:
+    logger.info(f"connecting to {config['irc']['host']}:{config['irc']['port']} without SSL... ")
+    bot = client.server().connect(config['irc']['host'], int(config['irc']['port']), config['irc']['nick'])
+except irc.client.ServerConnectionError:
+  logger.error(sys.exc_info()[1])
+  print(sys.exc_info()[1])
+  raise SystemExit(1)
 
 bot.add_global_handler("welcome", on_connect)
 bot.add_global_handler("join", on_join)
