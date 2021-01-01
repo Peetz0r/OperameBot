@@ -3,9 +3,12 @@
 import MySQLdb, irc.client, ssl, configparser, datetime, logging
 
 logging.basicConfig(
-  filename=datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S.log'),
+  handlers=(
+    logging.FileHandler(filename=datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S.log')),
+    logging.StreamHandler(),
+  ),
   format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
-  level=logging.DEBUG
+  level=logging.DEBUG,
 )
 logger = logging.getLogger('OperameBot')
 
@@ -44,7 +47,6 @@ def on_join(connection, event):
   logger.info(line)
   connection.privmsg(config['irc']['channel'], line)
   bot.execute_every(10, checkshop, (connection,))
-  connection.privmsg(config['irc']['channel'], 'Peetz0r: oi!')
 
 def on_disconnect(connection, event):
     raise SystemExit()
@@ -57,10 +59,10 @@ def checkshop(connection):
     LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join zou geen resultaten van virtuele orders teruggeven
     ON o.id_carrier = c.id_carrier
     WHERE o.current_state = 2                               # 2 is 'Betaling Aanvaard'
-    AND o.date_upd > {date_upd_laatste}
+    AND o.date_upd > %s
     ORDER BY o.date_upd ASC
     LIMIT 1
-  ''')
+  ''', (date_upd_laatste,))
   r = c.fetchone()
   logger.debug(r)
   if(r is not None):
