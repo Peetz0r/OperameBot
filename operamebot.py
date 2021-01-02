@@ -30,25 +30,27 @@ def on_connect(connection, event):
   return
 
 def on_join(connection, event):
-  logger.info(f"joined {(event.type, event.source, event.target, event.arguments)}")
-  c.execute(f'''
-    SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
-    FROM {config['db']['prefix']}orders AS o
-    LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
-    ON o.id_carrier = c.id_carrier
-    WHERE o.current_state = 2                               # 2 is 'Payment Accepted'
-    ORDER BY o.date_upd DESC
-    LIMIT 1
-  ''')
-  r = c.fetchone()
-  global date_upd_last, id_order_already_seen
-  date_upd_last = r[3]
-  id_order_already_seen.add(r[0])
-  kind = (r[4] or 'Donatie').split()[-1]
-  line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
-  logger.info(line)
-  connection.privmsg(config['irc']['channel'], line)
-  bot.execute_every(10, checkshop, (connection,))
+  logger.debug(f"joined {(event.type, event.source, event.target, event.arguments)}")
+  if event.source.startswith(config['irc']['nick']):
+    logger.info(f"joined {event.target} as {event.source}")
+    c.execute(f'''
+      SELECT o.id_order, o.total_paid, o.date_add, o.date_upd, c.name
+      FROM {config['db']['prefix']}orders AS o
+      LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
+      ON o.id_carrier = c.id_carrier
+      WHERE o.current_state = 2                               # 2 is 'Payment Accepted'
+      ORDER BY o.date_upd DESC
+      LIMIT 1
+    ''')
+    r = c.fetchone()
+    global date_upd_last, id_order_already_seen
+    date_upd_last = r[3]
+    id_order_already_seen.add(r[0])
+    kind = (r[4] or 'Donatie').split()[-1]
+    line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+    logger.info(line)
+    connection.privmsg(config['irc']['channel'], line)
+    bot.execute_every(10, checkshop, (connection,))
 
 def on_disconnect(connection, event):
     raise SystemExit()
