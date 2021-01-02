@@ -14,7 +14,7 @@ logger = logging.getLogger('OperameBot')
 
 config = configparser.ConfigParser()
 t = (config.read('config.ini'), config.sections())
-logger.info(f"Reading config file {t[0][0]} with scetions {t[1]}")
+logger.info(f"Reading config file {t[0][0]} with sections {t[1]}")
 
 db = MySQLdb.connect(host=config['db']['host'], user=config['db']['user'], password=config['db']['pass'], db=config['db']['db'])
 db.autocommit(True)
