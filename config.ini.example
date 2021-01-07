@@ -4,6 +4,7 @@ user = operamebot
 pass =
 db = prestashop
 prefix = ps_
+id_product = 42
 
 [irc]
 host = chat.freenode.net

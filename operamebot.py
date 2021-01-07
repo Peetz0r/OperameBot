@@ -1,14 +1,13 @@
 #!/bin/env python3
 
-import MySQLdb, irc.client, ssl, configparser, datetime, logging
+import MySQLdb, irc.client, ssl, configparser, datetime, logging, sys
 
 logging.basicConfig(
   handlers=(
-    logging.FileHandler(filename=datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S.log')),
     logging.StreamHandler(),
   ),
   format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
-  level=logging.DEBUG,
+  level=logging.INFO,
 )
 logger = logging.getLogger('OperameBot')
 
@@ -16,13 +15,24 @@ config = configparser.ConfigParser()
 t = (config.read('config.ini'), config.sections())
 logger.info(f"Reading config file {t[0][0]} with sections {t[1]}")
 
+
 db = MySQLdb.connect(host=config['db']['host'], user=config['db']['user'], password=config['db']['pass'], db=config['db']['db'])
+db.ping(True)
 db.autocommit(True)
 c = db.cursor()
 logger.info(f"connected to database (host={config['db']['host']}, user={config['db']['user']}, password=not logged, db={config['db']['db']})")
 
 date_upd_last = datetime.datetime(1, 1, 1)
 id_order_already_seen = set()
+
+def quantity():
+  c.execute(f'''
+    SELECT quantity
+    FROM {config['db']['prefix']}stock_available
+    WHERE id_product={config['db']['id_product']}
+    LIMIT 1
+  ''')
+  return c.fetchone()[0]
 
 def on_connect(connection, event):
   logger.info(f"connected {(event.type, event.source, event.target, event.arguments)}")
@@ -48,10 +58,22 @@ def on_join(connection, event):
     id_order_already_seen.add(r[0])
     logger.debug(f"date_upd_last is now {date_upd_last} and id_order_already_seen is now {id_order_already_seen}")
     kind = (r[4] or 'Donatie').split()[-1]
-    line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+    line = f"Laatste bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}. Voorraad: {quantity()}"
     logger.info(line)
     connection.privmsg(config['irc']['channel'], line)
     bot.execute_every(10, checkshop, (connection,))
+
+def on_kick(connection, event):
+  logger.debug(f"kicked {(event.type, event.source, event.target, event.arguments)}")
+  if(event.arguments[0] == config['irc']['nick']):
+    logger.info(f"Kicked by {event.source} ({event.arguments[1]})")
+    if(event.arguments[1] == 'restart'):
+      logger.info('Restarting on kick')
+      sys.exit(42)
+    else:
+      logger.info('Exiting on kick')
+      sys.exit(0)
+
 
 def on_disconnect(connection, event):
     raise SystemExit()
@@ -100,6 +122,7 @@ except irc.client.ServerConnectionError:
 
 bot.add_global_handler("welcome", on_connect)
 bot.add_global_handler("join", on_join)
+bot.add_global_handler("kick", on_kick)
 bot.add_global_handler("disconnect", on_disconnect)
 
 client.process_forever()
