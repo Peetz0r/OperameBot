@@ -1,0 +1,10 @@
+[Unit]
+Description=OperameBot
+
+[Service]
+WorkingDirectory=/home/peter/operamebot/
+ExecStart=/home/peter/operamebot/operamebot.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
