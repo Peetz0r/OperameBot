@@ -98,7 +98,7 @@ def checkshop(connection):
       id_order_already_seen.add(r[0])
       logger.debug(f"date_upd_last is now {date_upd_last} and id_order_already_seen is now {id_order_already_seen}")
       kind = (r[4] or 'Donatie').split()[-1]
-      line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}"
+      line = f"Nieuwe bestelling: #{r[0]} van €{r[1]:.2f} ({kind}) geplaatst op {r[2].strftime('%Y-%m-%d %X')}. Voorraad: {quantity()}"
       logger.info(line)
       connection.privmsg(config['irc']['channel'], line)
     else:
