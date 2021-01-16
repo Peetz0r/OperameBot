@@ -67,7 +67,7 @@ def on_kick(connection, event):
   logger.debug(f"kicked {(event.type, event.source, event.target, event.arguments)}")
   if(event.arguments[0] == config['irc']['nick']):
     logger.info(f"Kicked by {event.source} ({event.arguments[1]})")
-    if(event.arguments[1] == 'restart'):
+    if event.arguments[1].endswith('restart'):
       logger.info('Restarting on kick')
       sys.exit(42)
     else:
