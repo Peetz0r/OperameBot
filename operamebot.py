@@ -48,7 +48,7 @@ def on_join(connection, event):
       FROM {config['db']['prefix']}orders AS o
       LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
       ON o.id_carrier = c.id_carrier
-      WHERE o.current_state IN (2, 9)                         # 2 is 'Payment Accepted', 9 is 'Payment Accepted, backorder'
+      WHERE o.current_state IN ({config['db']['valid_order_statusses']})
       ORDER BY o.date_upd DESC
       LIMIT 1
     ''')
@@ -85,7 +85,7 @@ def checkshop(connection):
     FROM {config['db']['prefix']}orders AS o
     LEFT JOIN {config['db']['prefix']}carrier AS c          # implicit join wouldn't show virtual orders
     ON o.id_carrier = c.id_carrier
-    WHERE o.current_state IN (2, 9)                         # 2 is 'Payment Accepted', 9 is 'Payment Accepted, backorder'
+    WHERE o.current_state IN ({config['db']['valid_order_statusses']})
     AND o.date_upd > %s
     ORDER BY o.date_upd ASC
     LIMIT 1

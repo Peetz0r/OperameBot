@@ -5,6 +5,7 @@ pass =
 db = prestashop
 prefix = ps_
 id_product = 42
+valid_order_statusses = 2, 3, 4, 5, 9
 
 [irc]
 host = chat.freenode.net
